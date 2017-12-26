@@ -17,7 +17,7 @@ try {
 const moduleRegex = /^((?:@[a-z0-9][\w-.]+\/)?[a-z0-9][\w-.]*)/;
 
 export default class DynamicCdnWebpackPlugin {
-    constructor({disable = false, env, exclude, only, verbose, resolver} = {}) {
+    constructor({disable = false, env, exclude, only, verbose, resolver, useOriginalContext} = {}) {
         if (exclude && only) {
             throw new Error('You can\'t use \'exclude\' and \'only\' at the same time');
         }
@@ -28,12 +28,16 @@ export default class DynamicCdnWebpackPlugin {
         this.only = only || null;
         this.verbose = verbose === true;
         this.resolver = getResolver(resolver);
+        this.useOriginalContext = useOriginalContext;
 
         this.modulesFromCdn = {};
     }
 
     apply(compiler) {
         if (!this.disable) {
+            if (this.useOriginalContext) {
+                this.originalContext = compiler.context;
+            }
             this.execute(compiler, {env: this.env});
         }
 
@@ -50,7 +54,7 @@ export default class DynamicCdnWebpackPlugin {
         compiler.plugin('normal-module-factory', nmf => {
             nmf.plugin('factory', factory => async (data, cb) => {
                 const modulePath = data.dependencies[0].request;
-                const contextPath = data.context;
+                const contextPath = this.useOriginalContext ? this.originalContext : data.context;
 
                 const isModulePath = moduleRegex.test(modulePath);
                 if (!isModulePath) {
@@ -75,6 +79,10 @@ export default class DynamicCdnWebpackPlugin {
                                  (this.only && !includes(this.only, modulePath));
         if (isModuleExcluded) {
             return false;
+        }
+
+        if (this.useOriginalContext) {
+            contextPath = this.originalContext;
         }
 
         const moduleName = modulePath.match(moduleRegex)[1];
