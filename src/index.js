@@ -6,6 +6,13 @@ import includes from 'babel-runtime/core-js/array/includes';
 
 import getResolver from './get-resolver';
 
+// Use the compiler context if contextPath is outside baseDir
+// See https://github.com/mastilver/dynamic-cdn-webpack-plugin/issues/36
+function resolveContext(baseContext, contextPath) {
+    return !contextPath.startsWith(".") && contextPath.indexOf(baseContext) >= 0
+        ? contextPath : baseContext;
+}
+
 let HtmlWebpackPlugin;
 try {
     // eslint-disable-next-line import/no-extraneous-dependencies
@@ -47,10 +54,11 @@ export default class DynamicCdnWebpackPlugin {
     }
 
     execute(compiler, {env}) {
+        var baseContext = compiler.context;
         compiler.plugin('normal-module-factory', nmf => {
             nmf.plugin('factory', factory => async (data, cb) => {
                 const modulePath = data.dependencies[0].request;
-                const contextPath = data.context;
+                const contextPath = resolveContext(baseContext, data.context);
 
                 const isModulePath = moduleRegex.test(modulePath);
                 if (!isModulePath) {
@@ -94,7 +102,7 @@ export default class DynamicCdnWebpackPlugin {
 
         if (cdnConfig == null) {
             if (this.verbose) {
-                console.log(`❌ '${modulePath}' couldn't be find, please add it to https://github.com/mastilver/module-to-cdn/blob/master/modules.json`);
+                console.log(`❌ '${modulePath}' couldn't be found, please add it to https://github.com/mastilver/module-to-cdn/blob/master/modules.json`);
             }
             return false;
         }
